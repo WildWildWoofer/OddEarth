@@ -1,37 +1,43 @@
-# The Odd Earth Institute — Website V1
+# The Odd Earth Institute — Website V2
 
 **Elucidating the underpinnings of human capacity.**
 
-This is the public-facing V1 for The Odd Earth Institute. It is a static, GitHub-Pages-ready scrollytelling site built around a generative particle/wave visual system.
+This is the public-facing Odd Earth Institute site. V2 centers the human body as a dense, immersive 3D particle specimen and places evolutionary sensory specialists beside it for direct comparison.
 
-## Thesis
+## Current visual system
 
-Life contains extraordinary sensory specialists. Odd Earth studies the physics, biology and learning underlying those capabilities, then asks what can be trained, amplified or translated into human perception.
-
-The site moves through:
-
-1. Vision — eagle
-2. Active acoustics — bat
-3. Chemical space — dog
-4. Touch — star-nosed mole
-5. Field sensing — shark
-6. Orientation — migratory bird
-7. Inner Earth — interoception
-8. The revealed human
-
-## Technical approach
-
-- Static HTML/CSS/JavaScript
-- Three.js loaded from CDN
-- Procedurally generated particle organisms
-- Scroll-linked camera orbit and specimen transitions
+- Shader-based volumetric particle anatomy
+- Human-first compositions
+- Human + animal side-by-side specimen scenes
+- Slow scroll-linked orbital camera
+- Anatomical surface + internal anatomy + sensory-field layers
+- Distinct physical field language for each sensory chapter
+- Responsive mobile density scaling
 - No build step
-- No tracking or cookies
-- Sensorium is linked as the Institute's experimental/training wing
+
+## Scroll sequence
+
+1. Human — biological intelligence
+2. Evolutionary specialization
+3. Human + eagle — vision
+4. Human + bat — active acoustics
+5. Human + dog — chemical space
+6. Human + star-nosed mole — touch
+7. Human + shark — field sensing
+8. Human + migratory bird — orientation
+9. Inner Earth — interoception
+10. Revealed Human — synthesis
+
+## Institute doctrine
+
+**Measure what exists.  
+Train what is latent.  
+Amplify what is weak.  
+Translate what is inaccessible.**
+
+Animals are specialist references, not a hierarchy. The human never becomes a cyborg; the body becomes progressively more legible as a sensing organism.
 
 ## Run locally
-
-A local HTTP server is recommended because the JavaScript uses ES modules:
 
 ```bash
 python -m http.server 8080
@@ -39,18 +45,18 @@ python -m http.server 8080
 
 Then open `http://localhost:8080`.
 
-## Deploy on GitHub Pages
+## GitHub Pages
 
 Settings → Pages → Deploy from a branch → `main` → `/ (root)`.
 
-The expected public URL is:
+Expected URL:
 
 `https://wildwildwoofer.github.io/OddEarth/`
 
-## V1 design doctrine
+## Related
 
-- The human never becomes a cyborg.
-- Animals are references, not a hierarchy.
-- Visual effects should represent physical information, not generic HUD decoration.
-- Wonder should lead to mechanism, and mechanism should lead to an experiment.
-- The site should become more human, not less, as it progresses.
+Sensorium — the experimental/training wing:
+
+`https://wildwildwoofer.github.io/odd-earth-sensorium/`
+
+See `DESIGN_V2.md` for the current art-direction specification.
