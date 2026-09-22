@@ -1,342 +1,500 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 
 const canvas=document.querySelector('#world');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
+const renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.05;
 
 const scene=new THREE.Scene();
-scene.fog=new THREE.FogExp2(0x050908,0.055);
-const camera=new THREE.PerspectiveCamera(36,innerWidth/innerHeight,.1,100);
-camera.position.set(0,.08,7.6);
+scene.fog=new THREE.FogExp2(0x030606,0.045);
 
-const MOBILE=innerWidth<760;
-const D=MOBILE?.52:1;
+const camera=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,.1,100);
+camera.position.set(0,.25,5.7);
+
+const mobile=innerWidth<760;
+const density=mobile?.55:1;
 const TAU=Math.PI*2;
-const C={
-  bone:new THREE.Color('#d9d3c8'),
-  warm:new THREE.Color('#bca47a'),
-  moss:new THREE.Color('#7fa28f'),
-  brass:new THREE.Color('#b59b68'),
-  blood:new THREE.Color('#9b5f58'),
-  teal:new THREE.Color('#79a8a1'),
-  dim:new THREE.Color('#53625b'),
-  dark:new THREE.Color('#26332e')
+const chapters=[...document.querySelectorAll('.scene')];
+const groups={};
+const fieldObjects=[];
+let pointerX=0,pointerY=0,active='human';
+
+const colors={
+  human:new THREE.Color('#ded9ce'),
+  humanWarm:new THREE.Color('#bcb2a2'),
+  animal:new THREE.Color('#b7a47f'),
+  moss:new THREE.Color('#7f9e90'),
+  brass:new THREE.Color('#b89a65'),
+  blood:new THREE.Color('#9d5d56'),
+  teal:new THREE.Color('#78a6a0'),
+  dim:new THREE.Color('#4f5e58')
 };
 
-const groups={},chapters=[...document.querySelectorAll('.chapter')];
-const animators=[];
-let activeName='origin',pointerX=0,pointerY=0,time=0;
+const vertexShader=[
+'attribute float aSize;',
+'attribute float aPhase;',
+'attribute float aGlow;',
+'attribute vec3 aScatter;',
+'uniform float uTime;',
+'uniform float uSnap;',
+'uniform float uOpacity;',
+'uniform float uDrift;',
+'varying float vAlpha;',
+'varying float vGlow;',
+'void main(){',
+'  float s=smoothstep(0.0,1.0,uSnap);',
+'  vec3 loose=aScatter;',
+'  loose.x += sin(uTime*.28+aPhase*2.1)*uDrift;',
+'  loose.y += cos(uTime*.23+aPhase*1.7)*uDrift*.72;',
+'  loose.z += sin(uTime*.19+aPhase)*uDrift*.62;',
+'  vec3 p=mix(loose,position,s);',
+'  p += normal*0.0;',
+'  vec4 mv=modelViewMatrix*vec4(p,1.0);',
+'  float lockPulse=1.0+0.18*exp(-pow((s-.86)*9.0,2.0));',
+'  gl_PointSize=max(1.0,aSize*lockPulse*(215.0/-mv.z));',
+'  gl_Position=projectionMatrix*mv;',
+'  vAlpha=uOpacity;',
+'  vGlow=aGlow;',
+'}'
+].join('\n');
 
-const vert=`
-attribute float aSize;
-attribute float aPhase;
-attribute float aGlow;
-uniform float uTime;
-uniform float uOpacity;
-uniform float uMotion;
-varying float vAlpha;
-varying float vGlow;
-void main(){
-  vec3 p=position;
-  float breathe=sin(uTime*.72+aPhase)*uMotion;
-  p.y += breathe*.008;
-  p.x += sin(uTime*.31+aPhase*1.7)*uMotion*.003;
-  vec4 mv=modelViewMatrix*vec4(p,1.0);
-  gl_PointSize=max(1.0,aSize*(205.0/-mv.z));
-  gl_Position=projectionMatrix*mv;
-  vAlpha=uOpacity;
-  vGlow=aGlow;
-}`;
-const frag=`
-uniform vec3 uColor;
-varying float vAlpha;
-varying float vGlow;
-void main(){
-  vec2 uv=gl_PointCoord-.5;
-  float r=length(uv);
-  if(r>.5)discard;
-  float core=smoothstep(.5,.06,r);
-  float halo=smoothstep(.5,.22,r)*.32;
-  float a=(core+halo)*vAlpha*(.68+.32*vGlow);
-  vec3 col=uColor*(.76+.45*core+.18*vGlow);
-  gl_FragColor=vec4(col,a);
-}`;
+const fragmentShader=[
+'uniform vec3 uColor;',
+'varying float vAlpha;',
+'varying float vGlow;',
+'void main(){',
+'  vec2 p=gl_PointCoord-.5;',
+'  float r=length(p);',
+'  if(r>.5)discard;',
+'  float core=smoothstep(.46,.05,r);',
+'  float halo=smoothstep(.5,.18,r)*.22;',
+'  float a=(core+halo)*vAlpha;',
+'  vec3 c=uColor*(.72+.45*core+.17*vGlow);',
+'  gl_FragColor=vec4(c,a);',
+'}'
+].join('\n');
 
-function particleMaterial(color,opacity=.8,motion=.15){
-  const m=new THREE.ShaderMaterial({
+function rand(a,b){return a+Math.random()*(b-a)}
+function gauss(){
+  let u=0,v=0;
+  while(!u)u=Math.random();
+  while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v);
+}
+function push(out,x,y,z){out.push(x,y,z)}
+function ellipsoid(cx,cy,cz,rx,ry,rz,n,frontBias=0){
+  const out=[];
+  n=Math.floor(n*density);
+  for(let i=0;i<n;i++){
+    const th=Math.acos(rand(-1,1));
+    const ph=rand(0,TAU);
+    const shell=.90+.10*Math.random();
+    let x=cx+rx*shell*Math.sin(th)*Math.cos(ph);
+    let y=cy+ry*shell*Math.cos(th);
+    let z=cz+rz*shell*Math.sin(th)*Math.sin(ph);
+    if(frontBias>0&&Math.random()<frontBias)z=cz+Math.abs(z-cz);
+    push(out,x+gauss()*.004,y+gauss()*.004,z+gauss()*.004);
+  }
+  return out;
+}
+function tube(a,b,r1,r2,n){
+  const out=[];
+  n=Math.floor(n*density);
+  const A=new THREE.Vector3(a[0],a[1],a[2]);
+  const B=new THREE.Vector3(b[0],b[1],b[2]);
+  const axis=B.clone().sub(A);
+  const len=axis.length();
+  const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),axis.clone().normalize());
+  for(let i=0;i<n;i++){
+    const t=Math.random();
+    const r=(r1+(r2-r1)*t)*(.88+.12*Math.random());
+    const ang=rand(0,TAU);
+    const p=new THREE.Vector3(Math.cos(ang)*r,Math.sin(ang)*r,t*len).applyQuaternion(q).add(A);
+    push(out,p.x+gauss()*.003,p.y+gauss()*.003,p.z+gauss()*.003);
+  }
+  return out;
+}
+function triangle(a,b,c,n,curve=0){
+  const out=[];
+  n=Math.floor(n*density);
+  for(let i=0;i<n;i++){
+    let u=Math.random(),v=Math.random();
+    if(u+v>1){u=1-u;v=1-v}
+    const x=a[0]+u*(b[0]-a[0])+v*(c[0]-a[0]);
+    const y=a[1]+u*(b[1]-a[1])+v*(c[1]-a[1]);
+    const z=a[2]+u*(b[2]-a[2])+v*(c[2]-a[2])+Math.sin(u*Math.PI)*Math.sin(v*Math.PI)*curve;
+    push(out,x+gauss()*.004,y+gauss()*.004,z+gauss()*.004);
+  }
+  return out;
+}
+function arcPoints(cx,cy,cz,rx,ry,start,end,n,rotY=0){
+  const out=[];
+  for(let i=0;i<=n;i++){
+    const a=start+(end-start)*(i/n);
+    const x=rx*Math.cos(a),y=ry*Math.sin(a);
+    out.push(cx+x*Math.cos(rotY),cy+y,cz+x*Math.sin(rotY));
+  }
+  return out;
+}
+function particleCloud(group,positions,color,size=4.9,opacity=.88,spread=2.7){
+  const n=positions.length/3;
+  const scatter=new Float32Array(positions.length);
+  const sizes=new Float32Array(n);
+  const phase=new Float32Array(n);
+  const glow=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const j=i*3;
+    const homeX=positions[j],homeY=positions[j+1],homeZ=positions[j+2];
+    const a=rand(0,TAU),b=Math.acos(rand(-1,1)),r=spread*(.35+.65*Math.pow(Math.random(),.58));
+    scatter[j]=homeX*.12+Math.sin(b)*Math.cos(a)*r;
+    scatter[j+1]=homeY*.12+Math.cos(b)*r;
+    scatter[j+2]=homeZ*.12+Math.sin(b)*Math.sin(a)*r;
+    sizes[i]=size*(.60+.75*Math.random());
+    phase[i]=Math.random()*TAU;
+    glow[i]=Math.random();
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geo.setAttribute('aScatter',new THREE.BufferAttribute(scatter,3));
+  geo.setAttribute('aSize',new THREE.BufferAttribute(sizes,1));
+  geo.setAttribute('aPhase',new THREE.BufferAttribute(phase,1));
+  geo.setAttribute('aGlow',new THREE.BufferAttribute(glow,1));
+  const mat=new THREE.ShaderMaterial({
     uniforms:{
       uColor:{value:color.clone()},
       uTime:{value:0},
-      uOpacity:{value:opacity},
-      uMotion:{value:motion}
+      uSnap:{value:0},
+      uOpacity:{value:0},
+      uDrift:{value:.18}
     },
-    vertexShader:vert,fragmentShader:frag,transparent:true,depthWrite:false,
+    vertexShader:vertexShader,
+    fragmentShader:fragmentShader,
+    transparent:true,
+    depthWrite:false,
     blending:THREE.AdditiveBlending
   });
-  m.userData.baseOpacity=opacity;
-  return m;
+  mat.userData.baseOpacity=opacity;
+  const points=new THREE.Points(geo,mat);
+  group.add(points);
+  return points;
 }
-function cloud(group,pos,color=C.bone,size=5.3,opacity=.78,motion=.12){
-  const n=pos.length/3,sizes=new Float32Array(n),phase=new Float32Array(n),glow=new Float32Array(n);
-  for(let i=0;i<n;i++){sizes[i]=size*(.58+Math.random()*.72);phase[i]=Math.random()*TAU;glow[i]=Math.random()}
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute('aSize',new THREE.BufferAttribute(sizes,1));
-  g.setAttribute('aPhase',new THREE.BufferAttribute(phase,1));
-  g.setAttribute('aGlow',new THREE.BufferAttribute(glow,1));
-  const p=new THREE.Points(g,particleMaterial(color,opacity,motion));
-  group.add(p);return p;
+function line(group,pts,color,opacity=.22){
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  const mat=new THREE.LineBasicMaterial({color:color,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
+  mat.userData.baseOpacity=opacity;
+  const obj=new THREE.Line(geo,mat);
+  group.add(obj);
+  fieldObjects.push(obj);
+  return obj;
 }
-function line(group,pts,color=C.moss,opacity=.22){
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
-  const m=new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending});
-  m.userData.baseOpacity=opacity;
-  const l=new THREE.Line(g,m);group.add(l);return l;
+
+function humanFace(group,x=-.95,rot=.27,accent='none'){
+  const root=new THREE.Group();
+  root.position.x=x;
+  root.rotation.y=rot;
+  group.add(root);
+
+  let body=[];
+  body.push(...ellipsoid(0,.46,0,.50,.64,.46,2600,.33));
+  body.push(...ellipsoid(0,.00,-.01,.38,.30,.35,850,.25));
+  body.push(...tube([-.13,-.23,0],[0,-.42,0],.15,.18,320));
+  body.push(...triangle([-.15,.12,.38],[0,.28,.53],[.15,.12,.38],420,.015));
+  body.push(...ellipsoid(-.25,.10,.33,.17,.19,.09,340,.95));
+  body.push(...ellipsoid(.25,.10,.33,.17,.19,.09,340,.95));
+  body.push(...ellipsoid(0,-.12,.37,.19,.10,.05,280,.92));
+  body.push(...triangle([-.82,-.46,-.10],[0,-.18,-.18],[-1.22,-.72,-.22],750,.03));
+  body.push(...triangle([.82,-.46,-.10],[0,-.18,-.18],[1.22,-.72,-.22],750,.03));
+  particleCloud(root,body,colors.human,5.2,.84,2.9);
+
+  let warm=[];
+  warm.push(...ellipsoid(-.15,.16,.42,.085,.045,.034,170,.98));
+  warm.push(...ellipsoid(.15,.16,.42,.085,.045,.034,170,.98));
+  warm.push(...arcPoints(0,-.13,.405,.16,.055,Math.PI*.12,Math.PI*.88,70,0));
+  warm.push(...arcPoints(0,-.14,.408,.16,.055,Math.PI*1.12,Math.PI*1.88,70,0));
+  warm.push(...arcPoints(-.15,.23,.415,.13,.035,Math.PI*.05,Math.PI*.95,55,0));
+  warm.push(...arcPoints(.15,.23,.415,.13,.035,Math.PI*.05,Math.PI*.95,55,0));
+  particleCloud(root,warm,accent==='inner'?colors.blood:colors.humanWarm,4.0,.90,2.3);
+
+  if(accent==='vision'){
+    particleCloud(root,ellipsoid(-.15,.16,.455,.055,.027,.016,150,.99).concat(ellipsoid(.15,.16,.455,.055,.027,.016,150,.99)),colors.brass,5.1,.96,1.9);
+  }
+  if(accent==='hearing'){
+    particleCloud(root,ellipsoid(-.48,.21,.02,.055,.145,.07,180,.4).concat(ellipsoid(.48,.21,.02,.055,.145,.07,180,.4)),colors.teal,4.5,.86,2.1);
+  }
+  if(accent==='smell')particleCloud(root,ellipsoid(0,.06,.48,.07,.10,.055,190,.98),colors.brass,4.7,.90,1.8);
+  if(accent==='inner'){
+    particleCloud(root,ellipsoid(0,-.36,.03,.15,.18,.11,300,.5),colors.blood,5.0,.86,1.9);
+  }
+  return root;
 }
-const rnd=(a,b)=>a+Math.random()*(b-a);
-function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v)}
-function push(a,p){a.push(p.x,p.y,p.z)}
-function ellipsoidSurface(cx,cy,cz,rx,ry,rz,n,j=.015,bias=1){
-  const out=[];n=Math.floor(n*D);
+
+function eagleHead(group,x=.98,rot=-.32){
+  const root=new THREE.Group();root.position.x=x;root.rotation.y=rot;group.add(root);
+  let pts=[];
+  pts.push(...ellipsoid(0,.35,0,.47,.57,.42,2100,.35));
+  pts.push(...ellipsoid(.04,.05,-.02,.37,.34,.34,900,.25));
+  pts.push(...triangle([-.12,.25,.37],[.08,.33,.66],[.33,.20,.34],520,.02));
+  pts.push(...triangle([.08,.33,.66],[.44,.24,.28],[.25,.06,.39],460,.02));
+  pts.push(...triangle([-.36,.62,-.10],[-.62,.98,-.04],[-.17,.76,.16],420,.02));
+  particleCloud(root,pts,colors.animal,5.2,.85,2.9);
+  particleCloud(root,ellipsoid(-.16,.48,.39,.065,.055,.028,180,.98),colors.brass,5.2,.98,1.8);
+  return root;
+}
+function batHead(group,x=1.00,rot=-.25){
+  const root=new THREE.Group();root.position.x=x;root.rotation.y=rot;group.add(root);
+  let pts=[];
+  pts.push(...ellipsoid(0,.30,0,.33,.42,.30,1200,.32));
+  pts.push(...ellipsoid(0,.02,.24,.22,.18,.18,520,.65));
+  pts.push(...triangle([-.24,.50,.02],[-.48,1.08,-.02],[-.06,.68,.11],850,.025));
+  pts.push(...triangle([.24,.50,.02],[.48,1.08,-.02],[.06,.68,.11],850,.025));
+  pts.push(...ellipsoid(-.12,.34,.28,.052,.045,.026,130,.98));
+  pts.push(...ellipsoid(.12,.34,.28,.052,.045,.026,130,.98));
+  particleCloud(root,pts,colors.moss,5.1,.86,2.8);
+  particleCloud(root,ellipsoid(-.13,.35,.31,.035,.025,.016,100,.99).concat(ellipsoid(.13,.35,.31,.035,.025,.016,100,.99)),colors.brass,4.8,.96,1.8);
+  return root;
+}
+function dogHead(group,x=1.00,rot=-.32){
+  const root=new THREE.Group();root.position.x=x;root.rotation.y=rot;group.add(root);
+  let pts=[];
+  pts.push(...ellipsoid(0,.31,0,.43,.49,.38,1800,.38));
+  pts.push(...ellipsoid(-.03,.02,.34,.35,.23,.34,850,.82));
+  pts.push(...ellipsoid(-.03,-.03,.60,.18,.13,.13,430,.98));
+  pts.push(...triangle([-.31,.55,-.03],[-.48,.96,-.12],[-.06,.70,.04],500,.025));
+  pts.push(...triangle([.31,.55,-.03],[.48,.96,-.12],[.06,.70,.04],500,.025));
+  particleCloud(root,pts,colors.animal,5.2,.86,2.9);
+  particleCloud(root,ellipsoid(-.03,-.01,.72,.12,.08,.065,300,.99),colors.brass,5.0,.95,1.7);
+  particleCloud(root,ellipsoid(-.16,.37,.35,.05,.038,.023,110,.99).concat(ellipsoid(.16,.37,.35,.05,.038,.023,110,.99)),colors.humanWarm,4.5,.95,1.7);
+  return root;
+}
+function moleHead(group,x=1.02,rot=-.28){
+  const root=new THREE.Group();root.position.x=x;root.rotation.y=rot;group.add(root);
+  let pts=[];
+  pts.push(...ellipsoid(0,.26,0,.43,.38,.39,1650,.42));
+  pts.push(...ellipsoid(-.03,.02,.34,.30,.22,.28,700,.82));
+  particleCloud(root,pts,colors.dim,5.1,.88,2.9);
+  let star=[];
+  for(let i=0;i<22;i++){
+    const a=i/22*TAU;
+    star.push(...tube([0,.00,.58],[.34*Math.cos(a),.00+.34*Math.sin(a),.78],.028,.010,120));
+  }
+  particleCloud(root,star,colors.brass,4.5,.98,2.2);
+  return root;
+}
+function sharkHead(group,x=1.05,rot=-.48){
+  const root=new THREE.Group();root.position.x=x;root.rotation.y=rot;group.add(root);
+  let pts=[];
+  pts.push(...ellipsoid(0,.20,0,.72,.40,.54,2100,.35));
+  pts.push(...ellipsoid(-.10,.11,.44,.49,.25,.29,950,.77));
+  pts.push(...triangle([-.18,.54,-.07],[.02,1.00,-.13],[.25,.52,.02],520,.015));
+  particleCloud(root,pts,colors.teal,5.1,.86,3.1);
+  particleCloud(root,ellipsoid(-.25,.28,.42,.045,.034,.02,110,.99).concat(ellipsoid(.25,.28,.42,.045,.034,.02,110,.99)),colors.brass,4.4,.95,1.8);
+  line(root,arcPoints(0,-.02,.64,.32,.12,Math.PI*.16,Math.PI*.84,80,0),colors.humanWarm,.22);
+  return root;
+}
+function birdHead(group,x=1.00,rot=-.34){
+  const root=new THREE.Group();root.position.x=x;root.rotation.y=rot;group.add(root);
+  let pts=[];
+  pts.push(...ellipsoid(0,.30,0,.34,.39,.31,1300,.38));
+  pts.push(...ellipsoid(-.04,.05,-.02,.28,.27,.27,600,.32));
+  pts.push(...triangle([-.11,.25,.29],[.02,.26,.60],[.16,.22,.28],450,.01));
+  particleCloud(root,pts,colors.animal,5.0,.86,2.8);
+  particleCloud(root,ellipsoid(-.12,.38,.29,.045,.035,.02,120,.99).concat(ellipsoid(.12,.38,.29,.045,.035,.02,120,.99)),colors.brass,4.6,.96,1.7);
+  return root;
+}
+
+function ringField(group,center,color,count=6,axis='z'){
+  for(let j=0;j<count;j++){
+    const pts=[];
+    const r=.42+j*.22;
+    for(let i=0;i<=120;i++){
+      const a=i/120*TAU;
+      let x=center[0],y=center[1],z=center[2];
+      if(axis==='z'){x+=Math.cos(a)*r;y+=Math.sin(a)*r*.52;z+=Math.sin(a*2)*.05}
+      else if(axis==='x'){z+=Math.cos(a)*r;y+=Math.sin(a)*r*.55;x+=Math.sin(a*2)*.04}
+      else{x+=Math.cos(a)*r;z+=Math.sin(a)*r*.72;y+=Math.sin(a*2)*.04}
+      pts.push(x,y,z);
+    }
+    const l=line(group,pts,color,.16-j*.014);
+    l.userData.field=true;
+    l.userData.phase=j*.45;
+  }
+}
+function plumeField(group,startX,startY){
+  const pts=[];
+  const n=Math.floor(1400*density);
   for(let i=0;i<n;i++){
-    const u=Math.random(),v=Math.random(),th=Math.acos(1-2*u),ph=TAU*v;
-    const s=Math.pow(.82+.18*Math.random(),bias);
-    out.push(cx+rx*s*Math.sin(th)*Math.cos(ph)+gauss()*j,
-      cy+ry*s*Math.cos(th)+gauss()*j,
-      cz+rz*s*Math.sin(th)*Math.sin(ph)+gauss()*j);
-  }return out
-}
-function taperedTube(a,b,r1,r2,n,j=.006){
-  const out=[];n=Math.floor(n*D);
-  const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),axis=B.clone().sub(A),len=axis.length(),z=new THREE.Vector3(0,0,1);
-  const q=new THREE.Quaternion().setFromUnitVectors(z,axis.clone().normalize());
-  for(let i=0;i<n;i++){
-    const t=Math.random(),ang=TAU*Math.random(),r=(r1+(r2-r1)*t)*(.88+.12*Math.random());
-    const p=new THREE.Vector3(Math.cos(ang)*r,Math.sin(ang)*r,t*len).applyQuaternion(q).add(A);
-    p.x+=gauss()*j;p.y+=gauss()*j;p.z+=gauss()*j;push(out,p);
-  }return out
-}
-function taperedTorso(x=0,n=2600){
-  const out=[];n=Math.floor(n*D);
-  for(let i=0;i<n;i++){
-    const y=rnd(.0,1.18),t=y/1.18,ang=rnd(0,TAU);
-    const shoulder=.34+.29*Math.exp(-Math.pow((t-.83)/.22,2));
-    const waist=.34-.08*Math.exp(-Math.pow((t-.22)/.23,2));
-    const hip=.13*Math.exp(-Math.pow((t-.03)/.20,2));
-    const rx=(shoulder+waist+hip)*(.92+.08*Math.random());
-    const rz=(.24+.055*Math.exp(-Math.pow((t-.65)/.30,2)))*(.9+.1*Math.random());
-    out.push(x+Math.cos(ang)*rx+gauss()*.006,y+.02*Math.sin(ang*2)+gauss()*.006,Math.sin(ang)*rz+gauss()*.006);
-  }return out
-}
-function humanAnatomy(group,x=-.55,accent='none'){
-  let surf=[];
-  surf.push(...ellipsoidSurface(x,1.62,0,.28,.34,.255,900,.008));
-  surf.push(...ellipsoidSurface(x,1.40,.025,.22,.17,.20,420,.006));
-  surf.push(...taperedTube([x,1.30,0],[x,1.15,0],.12,.16,250));
-  surf.push(...taperedTorso(x,3000));
-  surf.push(...ellipsoidSurface(x,.0,0,.45,.28,.27,900,.007));
-  const shoulderY=1.03;
-  surf.push(...taperedTube([x-.46,shoulderY,0],[x-.71,.57,.015],.145,.118,700));
-  surf.push(...taperedTube([x-.71,.57,.015],[x-.78,.10,.025],.115,.085,650));
-  surf.push(...taperedTube([x+.46,shoulderY,0],[x+.71,.57,.015],.145,.118,700));
-  surf.push(...taperedTube([x+.71,.57,.015],[x+.78,.10,.025],.115,.085,650));
-  surf.push(...ellipsoidSurface(x-.79,.0,.03,.115,.17,.075,280,.004));
-  surf.push(...ellipsoidSurface(x+.79,.0,.03,.115,.17,.075,280,.004));
-  surf.push(...taperedTube([x-.24,-.12,0],[x-.30,-.78,.015],.19,.145,900));
-  surf.push(...taperedTube([x-.30,-.78,.015],[x-.31,-1.48,.04],.14,.095,900));
-  surf.push(...taperedTube([x+.24,-.12,0],[x+.30,-.78,.015],.19,.145,900));
-  surf.push(...taperedTube([x+.30,-.78,.015],[x+.31,-1.48,.04],.14,.095,900));
-  surf.push(...ellipsoidSurface(x-.31,-1.55,.13,.13,.09,.27,360,.004));
-  surf.push(...ellipsoidSurface(x+.31,-1.55,.13,.13,.09,.27,360,.004));
-  const body=cloud(group,surf,C.bone,5.7,.80,.16);
-
-  let inner=[];
-  inner.push(...ellipsoidSurface(x,.77,.08,.28,.36,.15,700,.004));
-  inner.push(...ellipsoidSurface(x,.50,.10,.16,.20,.105,430,.004));
-  cloud(group,inner,C.warm,4.1,.24,.10);
-
-  const spine=[];for(let i=0;i<=70;i++){const y=1.25-i/70*1.3;spine.push(x,y,-.16+Math.sin(i*.24)*.008)}
-  line(group,spine,C.brass,.13);
-  line(group,[x-.47,1.09,.17,x-.15,1.16,.20,x,1.13,.21,x+.15,1.16,.20,x+.47,1.09,.17],C.brass,.16);
-
-  const sensor=[];
-  if(accent==='vision')sensor.push(...ellipsoidSurface(x-.095,1.68,.235,.055,.028,.018,120,.002),...ellipsoidSurface(x+.095,1.68,.235,.055,.028,.018,120,.002));
-  if(accent==='hearing')sensor.push(...ellipsoidSurface(x-.27,1.63,.03,.035,.085,.045,100,.002),...ellipsoidSurface(x+.27,1.63,.03,.035,.085,.045,100,.002));
-  if(accent==='smell')sensor.push(...ellipsoidSurface(x,1.57,.255,.055,.075,.045,120,.002));
-  if(accent==='touch')sensor.push(...ellipsoidSurface(x-.79,-.01,.04,.12,.18,.08,180,.002),...ellipsoidSurface(x+.79,-.01,.04,.12,.18,.08,180,.002));
-  if(accent==='field')sensor.push(...ellipsoidSurface(x,.55,.24,.30,.50,.03,340,.002));
-  if(accent==='inner')sensor.push(...ellipsoidSurface(x,.72,.08,.14,.18,.10,280,.002),...ellipsoidSurface(x,.39,.10,.23,.17,.10,300,.002));
-  if(sensor.length)cloud(group,sensor,accent==='inner'?C.blood:C.brass,6.4,.88,.22);
-  return body;
+    const t=Math.random();
+    const a=rand(0,TAU);
+    const spread=(.04+.46*t)*Math.random();
+    push(pts,startX-t*1.6,startY+Math.sin(a)*spread*.42,Math.cos(a)*spread);
+  }
+  const p=particleCloud(group,pts,colors.brass,3.2,.32,1.6);
+  p.userData.field=true;
+  return p;
 }
 
-function wingSheet(a,b,c,n,curve=.12){
-  const out=[];n=Math.floor(n*D);
-  const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),C0=new THREE.Vector3(...c);
-  for(let i=0;i<n;i++){let u=Math.random(),v=Math.random();if(u+v>1){u=1-u;v=1-v}
-    const p=A.clone().add(B.clone().sub(A).multiplyScalar(u)).add(C0.clone().sub(A).multiplyScalar(v));
-    p.z+=Math.sin(u*Math.PI)*Math.sin(v*Math.PI)*curve+gauss()*.009;push(out,p)}
-  return out
-}
-function eagle(group,x=1.30){
-  let s=[];
-  s.push(...ellipsoidSurface(x,.40,0,.40,.61,.31,1050,.008));
-  s.push(...ellipsoidSurface(x+.04,1.00,.02,.25,.28,.22,520,.006));
-  s.push(...ellipsoidSurface(x+.22,.94,.17,.17,.13,.12,250,.004));
-  s.push(...wingSheet([x-.18,.75,.02],[x-1.72,.95,.20],[x-.64,-.04,.10],1700,.11));
-  s.push(...wingSheet([x+.18,.75,.02],[x+1.72,.95,.20],[x+.64,-.04,.10],1700,.11));
-  s.push(...wingSheet([x-.13,-.05,.01],[x-.55,-.75,.08],[x,.0,.0],430,.04));
-  s.push(...wingSheet([x+.13,-.05,.01],[x+.55,-.75,.08],[x,.0,.0],430,.04));
-  cloud(group,s,C.warm,5.1,.78,.16);
-  cloud(group,wingSheet([x+.18,1.02,.15],[x+.56,.95,.17],[x+.23,.85,.17],260,.01),C.brass,4.7,.84,.08);
-  for(let j=-3;j<=3;j++)line(group,[x+.22,1.00,.24,x+2.65,1.02+j*.085,.55+j*.035],C.brass,.12);
-}
-function bat(group,x=1.28){
-  let s=[];
-  s.push(...ellipsoidSurface(x,.35,0,.24,.52,.20,650,.006));
-  s.push(...ellipsoidSurface(x,.94,0,.18,.21,.17,300,.004));
-  s.push(...wingSheet([x-.12,.74,.02],[x-1.68,1.02,.18],[x-.54,-.47,.10],1700,.06));
-  s.push(...wingSheet([x+.12,.74,.02],[x+1.68,1.02,.18],[x+.54,-.47,.10],1700,.06));
-  cloud(group,s,C.moss,4.9,.76,.18);
-  cloud(group,wingSheet([x-.09,1.04,.02],[x-.34,1.36,.04],[x-.01,1.17,.04],170,.01).concat(wingSheet([x+.09,1.04,.02],[x+.34,1.36,.04],[x+.01,1.17,.04],170,.01)),C.brass,4.5,.78,.10);
-  for(let j=0;j<8;j++){const pts=[],r=.38+j*.24;for(let i=0;i<=130;i++){const a=i/130*TAU;pts.push(x+.10+Math.cos(a)*r,.90+Math.sin(a)*r*.38,.26+Math.sin(a*2)*.04)}const l=line(group,pts,C.teal,.18-j*.015);animators.push({type:'pulse',obj:l,phase:j*.55})}
-}
-function dog(group,x=1.22){
-  let s=[];
-  s.push(...ellipsoidSurface(x,.28,0,.76,.48,.35,1200,.008));
-  s.push(...ellipsoidSurface(x+.43,.66,0,.29,.40,.29,520,.006));
-  s.push(...ellipsoidSurface(x+.76,.82,.0,.34,.31,.27,570,.006));
-  s.push(...ellipsoidSurface(x+1.03,.71,.10,.31,.16,.18,360,.004));
-  for(const lx of [x-.45,x-.08,x+.42,x+.63])s.push(...taperedTube([lx,.10,0],[lx-.02,-.78,.03],.10,.07,380));
-  s.push(...taperedTube([x-.66,.43,0],[x-1.13,.84,.04],.08,.045,260));
-  s.push(...wingSheet([x+.58,1.00,.03],[x+.45,1.38,.02],[x+.78,1.08,.08],210,.01));
-  s.push(...wingSheet([x+.84,1.01,.03],[x+.96,1.37,.02],[x+1.08,.96,.08],210,.01));
-  cloud(group,s,C.warm,5.0,.77,.14);
-  const plume=[];for(let i=0;i<Math.floor(1900*D);i++){const t=Math.random(),a=rnd(0,TAU),spread=.05+.68*t*Math.random();plume.push(x+1.24+t*2.45,.72+Math.sin(a)*spread*.30,Math.cos(a)*spread)}const p=cloud(group,plume,C.brass,3.6,.25,.32);animators.push({type:'drift',obj:p,phase:0});
-}
-function mole(group,x=1.18){
-  let s=[];
-  s.push(...ellipsoidSurface(x,.14,0,.80,.38,.34,1200,.007));
-  s.push(...ellipsoidSurface(x+.66,.28,.02,.34,.29,.26,480,.005));
-  s.push(...taperedTube([x-.45,.02,.12],[x-.58,-.42,.22],.09,.06,280));
-  s.push(...taperedTube([x+.33,.03,.12],[x+.43,-.44,.25],.09,.06,280));
-  cloud(group,s,C.dim,5.0,.80,.13);
-  let star=[];for(let i=0;i<22;i++){const a=i/22*TAU;star.push(...taperedTube([x+.92,.30,.03],[x+1.35,.30+Math.sin(a)*.39,Math.cos(a)*.40],.024,.010,115,.002))}cloud(group,star,C.brass,4.5,.87,.18);
-  const terrain=[];for(let i=0;i<Math.floor(1400*D);i++){const px=rnd(-2.4,2.5),pz=rnd(-.72,.82),py=-.95+.035*Math.sin(px*10)+.022*Math.cos(pz*13);terrain.push(px,py,pz)}cloud(group,terrain,C.moss,3.0,.20,.04);
-}
-function shark(group,x=1.18){
-  let s=[];
-  s.push(...ellipsoidSurface(x,.22,0,1.20,.42,.47,1600,.008));
-  s.push(...wingSheet([x-.96,.21,.0],[x-1.66,.88,.02],[x-1.52,.17,.0],500,.03));
-  s.push(...wingSheet([x-.96,.16,.0],[x-1.68,-.52,.02],[x-1.52,.17,.0],500,.03));
-  s.push(...wingSheet([x,.40,.0],[x-.20,1.04,.02],[x+.35,.42,.02],430,.03));
-  s.push(...wingSheet([x+.05,.11,.26],[x+.37,-.58,.71],[x+.57,.15,.27],400,.02));
-  cloud(group,s,C.teal,5.1,.78,.12);
-  for(let j=0;j<9;j++){const pts=[],r=.62+j*.25;for(let i=0;i<=120;i++){const a=i/120*TAU;pts.push(x+.1+Math.sin(a*2)*.03,.22+Math.sin(a)*r*.55,Math.cos(a)*r)}const l=line(group,pts,j%2?C.moss:C.teal,.12-j*.008);animators.push({type:'field',obj:l,phase:j*.6})}
-}
-function migratoryBird(group,x=1.20){
-  let s=[];
-  s.push(...ellipsoidSurface(x,.34,0,.38,.53,.25,650,.006));
-  s.push(...ellipsoidSurface(x+.28,.82,0,.19,.23,.17,280,.004));
-  s.push(...wingSheet([x-.06,.60,.03],[x-1.35,.98,.13],[x-.49,.02,.06],980,.07));
-  s.push(...wingSheet([x+.10,.56,.03],[x+1.35,.91,.13],[x+.53,-.03,.06],980,.07));
-  s.push(...wingSheet([x-.05,.05,0],[x-.43,-.62,.02],[x+.13,.10,.01],320,.02));
-  cloud(group,s,C.warm,4.8,.77,.16);
-  for(let j=0;j<10;j++){const pts=[],r=.72+j*.23;for(let i=0;i<=130;i++){const a=i/130*TAU;pts.push(.1+Math.cos(a)*r,.05+Math.sin(a)*r*.55,Math.sin(a*.5)*.30)}const l=line(group,pts,j%2?C.brass:C.moss,.075);l.rotation.x=.55;animators.push({type:'field',obj:l,phase:j*.45})}
-}
-function rings(group,cx,cy,cz,color,count=6,axis='z',opacity=.11){
-  for(let j=0;j<count;j++){const pts=[],r=.52+j*.26;for(let i=0;i<=120;i++){const a=i/120*TAU;let x=cx,y=cy,z=cz;if(axis==='z'){x+=Math.cos(a)*r;y+=Math.sin(a)*r*.55;z+=Math.sin(a*2)*.06}else if(axis==='x'){z+=Math.cos(a)*r;y+=Math.sin(a)*r*.55;x+=Math.sin(a*2)*.06}else{x+=Math.cos(a)*r;z+=Math.sin(a)*r*.68;y+=Math.sin(a*2)*.05}pts.push(x,y,z)}const l=line(group,pts,color,opacity*(1-j/(count+3)));animators.push({type:'ring',obj:l,phase:j*.45})}
-}
-function specimen(name,builder){
-  const g=new THREE.Group();g.userData.name=name;builder(g);scene.add(g);groups[name]=g;
-  g.traverse(o=>{if(o.material?.uniforms?.uOpacity)o.material.uniforms.uOpacity.value=0;else if(o.material){o.material.opacity=0}});
-}
-specimen('origin',g=>{humanAnatomy(g,0,'none');rings(g,0,.56,0,C.moss,6,'y',.055)});
-specimen('thesis',g=>{humanAnatomy(g,0,'none');rings(g,0,.56,0,C.brass,8,'y',.05)});
-specimen('eagle',g=>{humanAnatomy(g,-.72,'vision');eagle(g,1.30)});
-specimen('bat',g=>{humanAnatomy(g,-.72,'hearing');bat(g,1.25)});
-specimen('dog',g=>{humanAnatomy(g,-.72,'smell');dog(g,1.16)});
-specimen('mole',g=>{humanAnatomy(g,-.72,'touch');mole(g,1.06)});
-specimen('shark',g=>{humanAnatomy(g,-.72,'field');shark(g,1.12)});
-specimen('bird',g=>{humanAnatomy(g,-.72,'field');migratoryBird(g,1.13)});
-specimen('inner',g=>{humanAnatomy(g,0,'inner');rings(g,0,.69,.08,C.blood,5,'z',.14);rings(g,0,.38,.06,C.moss,4,'x',.09)});
-specimen('human',g=>{humanAnatomy(g,0,'inner');rings(g,0,.70,0,C.moss,5,'z',.08);rings(g,0,.72,0,C.brass,5,'x',.065)});
-specimen('final',g=>{humanAnatomy(g,0,'inner');rings(g,0,.62,0,C.brass,9,'y',.05)});
-
-const meta={
- origin:['HOMO SAPIENS','BIOLOGICAL INTELLIGENCE','INFORMATION → PERCEPTION'],
- thesis:['GENERALIST / SPECIMEN 00','EVOLUTIONARY SPECIALIZATION','SAME WORLD · DIFFERENT INTERFACE'],
- eagle:['HUMAN ↔ EAGLE','VISION / PHOTONS','ACUITY · CONTRAST · MOTION'],
- bat:['HUMAN ↔ BAT','ACTIVE ACOUSTICS','SOUND → GEOMETRY'],
- dog:['HUMAN ↔ DOG','CHEMICAL SPACE','VOLATILES · GRADIENTS · MIXTURES'],
- mole:['HUMAN ↔ STAR-NOSED MOLE','ACTIVE TOUCH','TOPOGRAPHY · FRICTION · VIBRATION'],
- shark:['HUMAN ↔ SHARK','FIELD SENSING','BIOELECTRIC INFORMATION'],
- bird:['HUMAN ↔ MIGRATORY BIRD','ORIENTATION','FIELD → DIRECTION'],
- inner:['INNER EARTH','INTEROCEPTION','BODY → PERCEPTION'],
- human:['HOMO SAPIENS / REVEALED','CAPABILITY ATLAS','TRAIN · AMPLIFY · TRANSLATE'],
- final:['THE ODD EARTH INSTITUTE','HUMAN CAPACITY','MEASURE → TRAIN → EXTEND']
-};
-
-function sectionState(){
-  const mid=innerHeight*.52;let best=chapters[0],bestD=Infinity,progress=.5;
-  for(const el of chapters){const r=el.getBoundingClientRect(),c=r.top+r.height/2,d=Math.abs(c-mid);if(d<bestD){bestD=d;best=el;progress=THREE.MathUtils.clamp((mid-r.top)/r.height,0,1)}}
-  return {name:best.dataset.scene||'origin',progress};
-}
-function opacityFor(name){
-  const el=chapters.find(x=>x.dataset.scene===name);if(!el)return 0;
-  const r=el.getBoundingClientRect(),mid=innerHeight*.52,d=Math.abs((r.top+r.height/2)-mid);
-  const x=1-THREE.MathUtils.clamp(d/(innerHeight*.78),0,1);
-  return THREE.MathUtils.smoothstep(x,0,1);
-}
-function setGroupOpacity(g,o){
-  g.visible=o>.006;
-  g.traverse(obj=>{
-    const m=obj.material;if(!m)return;
-    if(m.uniforms?.uOpacity)m.uniforms.uOpacity.value=m.userData.baseOpacity*o;
-    else if(m.userData.baseOpacity!=null)m.opacity=m.userData.baseOpacity*o;
+function sceneGroup(name,builder){
+  const g=new THREE.Group();
+  g.userData.name=name;
+  builder(g);
+  scene.add(g);
+  groups[name]=g;
+  g.traverse(function(o){
+    if(o.material&&o.material.uniforms){
+      o.material.uniforms.uOpacity.value=0;
+      o.material.uniforms.uSnap.value=0;
+    }else if(o.material){
+      o.material.opacity=0;
+    }
   });
 }
-function setMeta(name){
-  if(name===activeName)return;activeName=name;
-  const m=meta[name]||meta.origin;
-  document.querySelector('#stageLabel').textContent=m[0];
-  document.querySelector('#fieldReadout').textContent=m[1];
-  document.querySelector('#principleReadout').textContent=m[2];
+sceneGroup('human',function(g){
+  humanFace(g,0,0,'none');
+});
+sceneGroup('eagle',function(g){
+  humanFace(g,-.95,.28,'vision');
+  eagleHead(g,.98,-.32);
+  for(let j=-3;j<=3;j++){
+    const l=line(g,[-.77,.18,.46,.72,.24+j*.065,.58],colors.brass,.13);
+    l.userData.field=true;
+  }
+});
+sceneGroup('bat',function(g){
+  humanFace(g,-.95,.28,'hearing');
+  batHead(g,1.0,-.25);
+  ringField(g,[.55,.30,.15],colors.teal,8,'z');
+});
+sceneGroup('dog',function(g){
+  humanFace(g,-.95,.28,'smell');
+  dogHead(g,1.0,-.32);
+  plumeField(g,.98,.02);
+});
+sceneGroup('mole',function(g){
+  humanFace(g,-.95,.28,'touch');
+  moleHead(g,1.02,-.28);
+  ringField(g,[.48,.0,.1],colors.brass,5,'x');
+});
+sceneGroup('shark',function(g){
+  humanFace(g,-.95,.28,'field');
+  sharkHead(g,1.05,-.48);
+  ringField(g,[.55,.20,.0],colors.teal,9,'x');
+});
+sceneGroup('bird',function(g){
+  humanFace(g,-.95,.28,'field');
+  birdHead(g,1.0,-.34);
+  ringField(g,[.0,.28,-.05],colors.brass,10,'y');
+});
+sceneGroup('inner',function(g){
+  humanFace(g,0,0,'inner');
+  ringField(g,[0,-.28,.05],colors.blood,6,'z');
+  ringField(g,[0,.25,-.10],colors.moss,5,'x');
+});
+
+const labels={
+  human:['00','HUMAN'],
+  eagle:['01','VISION'],
+  bat:['02','ECHOLOCATION'],
+  dog:['03','CHEMICAL SPACE'],
+  mole:['04','TOUCH'],
+  shark:['05','FIELD SENSING'],
+  bird:['06','ORIENTATION'],
+  inner:['07','INNER EARTH']
+};
+
+function sectionMetrics(el){
+  const r=el.getBoundingClientRect();
+  const p=THREE.MathUtils.clamp((innerHeight-r.top)/(r.height+innerHeight),0,1);
+  const centerDist=Math.abs((r.top+r.height*.5)-innerHeight*.5);
+  const visibility=1-THREE.MathUtils.clamp(centerDist/(innerHeight*.82),0,1);
+  return {progress:p,visibility:THREE.MathUtils.smoothstep(visibility,0,1)};
 }
-function tick(ms){
-  requestAnimationFrame(tick);time=ms*.001;
-  const ss=sectionState();setMeta(ss.name);
-  const idx=Math.max(0,chapters.findIndex(x=>x.dataset.scene===ss.name));
-  for(const [name,g] of Object.entries(groups)){
-    const o=opacityFor(name);setGroupOpacity(g,o);
-    if(o>.01){
-      g.rotation.y=Math.sin(time*.18+idx*.7)*.055;
-      g.rotation.x=Math.sin(time*.11+idx)*.012;
-      g.position.y=Math.sin(time*.34)*.012;
-      g.traverse(obj=>{if(obj.material?.uniforms?.uTime)obj.material.uniforms.uTime.value=time});
+function snapCurve(p){
+  if(p<.25)return p/.25*.08;
+  if(p<.39)return .08+(p-.25)/.14*.12;
+  if(p<.49){
+    const t=(p-.39)/.10;
+    return .20+(t*t*(3-2*t))*.80;
+  }
+  return 1;
+}
+function setSceneState(name,g,opacity,snap,field){
+  g.visible=opacity>.005;
+  g.traverse(function(o){
+    const m=o.material;
+    if(!m)return;
+    if(m.uniforms&&m.uniforms.uOpacity){
+      m.uniforms.uOpacity.value=(m.userData.baseOpacity||.8)*opacity;
+      m.uniforms.uSnap.value=snap;
+      m.uniforms.uTime.value=performance.now()*.001;
+      m.uniforms.uDrift.value=.20*(1-snap)+.012;
+      if(o.userData.field)m.uniforms.uOpacity.value*=field;
+    }else if(m.userData.baseOpacity!=null){
+      m.opacity=m.userData.baseOpacity*opacity*(o.userData.field?field:1);
     }
+  });
+}
+function updateActive(name,locked){
+  if(name!==active){
+    active=name;
+    const l=labels[name]||labels.human;
+    document.querySelector('#sceneNumber').textContent=l[0];
+    document.querySelector('#sceneName').textContent=l[1];
   }
+  chapters.forEach(function(el){
+    const is=el.dataset.scene===name;
+    el.classList.toggle('is-active',is);
+    el.classList.toggle('is-locked',is&&locked);
+  });
+}
+function animate(){
+  requestAnimationFrame(animate);
+  let bestName='human',bestVis=-1,bestProgress=.5;
+  chapters.forEach(function(el){
+    const name=el.dataset.scene;
+    const m=sectionMetrics(el);
+    const snap=snapCurve(m.progress);
+    const field=THREE.MathUtils.smoothstep(snap,.72,1);
+    setSceneState(name,groups[name],m.visibility,snap,field);
+    if(m.visibility>bestVis){bestVis=m.visibility;bestName=name;bestProgress=m.progress}
+  });
+  const locked=snapCurve(bestProgress)>.88;
+  updateActive(bestName,locked);
 
-  const baseYaw=(idx*.56+(ss.progress-.5)*1.0);
-  const radius=7.15+Math.cos(baseYaw)*.42;
-  const tx=Math.sin(baseYaw)*1.15+pointerX*.16;
-  const ty=.08+Math.sin(baseYaw*.55)*.10+pointerY*.08;
-  camera.position.x+=(tx-camera.position.x)*.028;
-  camera.position.y+=(ty-camera.position.y)*.028;
-  camera.position.z+=(radius-camera.position.z)*.028;
-  camera.lookAt(new THREE.Vector3(.04,.12,0));
+  const index=Math.max(0,chapters.findIndex(function(x){return x.dataset.scene===bestName}));
+  const orbit=(bestProgress-.5)*.58+(index%2?-.08:.08);
+  const targetX=Math.sin(orbit)*.55+pointerX*.10;
+  const targetY=.18+Math.sin(index*.7)*.04+pointerY*.06;
+  const targetZ=5.45+Math.cos(orbit)*.12;
+  camera.position.x+=(targetX-camera.position.x)*.035;
+  camera.position.y+=(targetY-camera.position.y)*.035;
+  camera.position.z+=(targetZ-camera.position.z)*.035;
+  camera.lookAt(0,.20,0);
 
-  for(const a of animators){
-    if(a.type==='pulse'){const s=1+.024*Math.sin(time*2.2+a.phase);a.obj.scale.setScalar(s)}
-    if(a.type==='field'||a.type==='ring')a.obj.rotation.z=.045*Math.sin(time*.38+a.phase);
-    if(a.type==='drift')a.obj.position.x=.045*Math.sin(time*.22+a.phase);
-  }
+  Object.values(groups).forEach(function(g){
+    if(!g.visible)return;
+    g.position.y=Math.sin(performance.now()*.00032)*.009;
+  });
+  fieldObjects.forEach(function(o){
+    if(o.userData.field)o.rotation.z=.018*Math.sin(performance.now()*.00045+(o.userData.phase||0));
+  });
+
+  const doc=document.documentElement;
+  const max=doc.scrollHeight-innerHeight;
+  document.querySelector('#progressBar').style.width=(max>0?scrollY/max*100:0)+'%';
   renderer.render(scene,camera);
 }
-addEventListener('pointermove',e=>{pointerX=(e.clientX/innerWidth-.5)*2;pointerY=(e.clientY/innerHeight-.5)*-2});
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7))});
-tick(0);
+addEventListener('pointermove',function(e){
+  pointerX=(e.clientX/innerWidth-.5)*2;
+  pointerY=(e.clientY/innerHeight-.5)*-2;
+});
+addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+});
+animate();

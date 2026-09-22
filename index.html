@@ -3,194 +3,94 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#050908" />
+  <meta name="theme-color" content="#030606" />
   <meta name="description" content="The Odd Earth Institute — elucidating the underpinnings of human capacity." />
   <title>The Odd Earth Institute</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="grain"></div>
-  <header class="nav">
-    <a class="brand" href="#origin">
-      <span class="brand-glyph">OE</span>
-      <span class="brand-copy"><strong>THE ODD EARTH INSTITUTE</strong><small>Human capacity · biological intelligence</small></span>
-    </a>
-    <nav>
-      <a href="#thesis">Thesis</a>
-      <a href="#specialists">Specialists</a>
-      <a href="#inner-earth">Inner Earth</a>
-      <a href="https://wildwildwoofer.github.io/odd-earth-sensorium/">Sensorium ↗</a>
-    </nav>
+  <canvas id="world" aria-hidden="true"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#human">THE ODD EARTH INSTITUTE</a>
+    <a class="sensorium" href="https://wildwildwoofer.github.io/odd-earth-sensorium/">SENSORIUM ↗</a>
   </header>
 
-  <div id="stage" aria-hidden="true">
-    <canvas id="world"></canvas>
-    <div class="reticle"><i></i><i></i><span id="stageLabel">HOMO SAPIENS</span></div>
-    <div class="readout readout-left">
-      <span>ODD EARTH FIELD STUDY</span>
-      <b id="fieldReadout">BIOLOGICAL INTELLIGENCE</b>
-    </div>
-    <div class="readout readout-right">
-      <span>SPECIMEN / PRINCIPLE</span>
-      <b id="principleReadout">INFORMATION → PERCEPTION</b>
-    </div>
-  </div>
+  <aside class="scene-index" aria-hidden="true">
+    <span id="sceneNumber">00</span>
+    <i></i>
+    <span id="sceneName">HUMAN</span>
+  </aside>
 
-  <main>
-    <section class="hero chapter" id="origin" data-scene="origin">
-      <div class="hero-copy">
-        <p class="kicker">THE ODD EARTH INSTITUTE</p>
-        <h1>There is more information in the world than any one organism can perceive.</h1>
-        <p class="dek">We study the biology, physics and learning that underpin extraordinary sensory capability — then ask how much of that world can become available to the human nervous system.</p>
-        <div class="hero-actions">
-          <a class="pill solid" href="#thesis">Enter the Institute</a>
-          <a class="pill" href="https://wildwildwoofer.github.io/odd-earth-sensorium/">Enter Sensorium ↗</a>
-        </div>
+  <main id="experience">
+    <section class="scene" id="human" data-scene="human">
+      <div class="caption hero-caption">
+        <p>THE ODD EARTH INSTITUTE</p>
+        <h1>Biological intelligence<br/>is universal.</h1>
       </div>
-      <div class="scroll-cue">SCROLL TO ORBIT THE SPECIMENS <span>↓</span></div>
+      <div class="scroll-hint">SCROLL <span>↓</span></div>
     </section>
 
-    <section class="manifest chapter" id="thesis" data-scene="thesis">
-      <div class="manifest-card">
-        <p class="kicker">CENTRAL THESIS</p>
-        <h2>Evolution did not build one perfect sensor.<br/><em>It built specialists.</em></h2>
-        <p>Odd Earth treats every specialist as a biological proof-of-concept. The eagle, bat, dog, mole, shark and migratory bird each reveal a different answer to the same question:</p>
-        <blockquote>What information exists here, and what kind of nervous system can learn to use it?</blockquote>
+    <section class="scene" data-scene="eagle">
+      <div class="caption">
+        <p>01</p>
+        <h2>VISION</h2>
+        <small>HUMAN ↔ EAGLE</small>
       </div>
     </section>
 
-    <div id="specialists">
-      <section class="chapter specimen" data-scene="eagle">
-        <article class="specimen-copy left">
-          <p class="index">01 / VISION</p>
-          <p class="kicker">THE SPECIALIST · EAGLE</p>
-          <h2>Light becomes distance.</h2>
-          <p>Visual acuity is not simply “better eyesight.” It is a biological architecture for extracting more spatial information from photons.</p>
-          <dl>
-            <div><dt>Physical variable</dt><dd>Photons · contrast · motion</dd></div>
-            <div><dt>Human question</dt><dd>How much visual information already reaches the eye but goes unused?</dd></div>
-            <div><dt>Institute pathway</dt><dd>Train visual discrimination before augmenting optics.</dd></div>
-          </dl>
-          <p class="axiom">Animals reveal what is possible. Odd Earth asks what is transferable.</p>
-        </article>
-      </section>
-
-      <section class="chapter specimen" data-scene="bat">
-        <article class="specimen-copy right">
-          <p class="index">02 / ACTIVE ACOUSTICS</p>
-          <p class="kicker">THE SPECIALIST · BAT</p>
-          <h2>Sound becomes geometry.</h2>
-          <p>An emitted click is a question asked of the environment. The returning echo is a spatial answer.</p>
-          <dl>
-            <div><dt>Physical variable</dt><dd>Pressure waves · delay · spectrum</dd></div>
-            <div><dt>Human capacity</dt><dd>Trainable active echolocation</dd></div>
-            <div><dt>Odd Earth instrument</dt><dd>OE Echo · Sensorium</dd></div>
-          </dl>
-          <a class="text-link" href="https://wildwildwoofer.github.io/odd-earth-sensorium/">Train OE Echo ↗</a>
-        </article>
-      </section>
-
-      <section class="chapter specimen" data-scene="dog">
-        <article class="specimen-copy left">
-          <p class="index">03 / CHEMICAL SPACE</p>
-          <p class="kicker">THE SPECIALIST · DOG</p>
-          <h2>Chemistry has a landscape.</h2>
-          <p>Odour is not merely a smell. It is concentration, mixture, direction, history and turbulence rendered as a navigable world.</p>
-          <dl>
-            <div><dt>Physical variable</dt><dd>Volatiles · gradients · mixtures</dd></div>
-            <div><dt>Human question</dt><dd>Can expertise make chemical space consciously richer?</dd></div>
-            <div><dt>Institute pathway</dt><dd>Standardized reference libraries · adaptive olfactory psychophysics</dd></div>
-          </dl>
-        </article>
-      </section>
-
-      <section class="chapter specimen" data-scene="mole">
-        <article class="specimen-copy right">
-          <p class="index">04 / TOUCH</p>
-          <p class="kicker">THE SPECIALIST · STAR-NOSED MOLE</p>
-          <h2>A surface is information below your current threshold.</h2>
-          <p>Touch is active spectroscopy. Movement transforms microstructure into vibration, friction and deformation that the nervous system can learn to classify.</p>
-          <dl>
-            <div><dt>Physical variable</dt><dd>Topography · vibration · friction</dd></div>
-            <div><dt>Human question</dt><dd>How fine can trained material discrimination become?</dd></div>
-            <div><dt>Odd Earth instrument</dt><dd>OE Touch · physical reference libraries</dd></div>
-          </dl>
-        </article>
-      </section>
-
-      <section class="chapter specimen" data-scene="shark">
-        <article class="specimen-copy left">
-          <p class="index">05 / FIELD SENSING</p>
-          <p class="kicker">THE SPECIALIST · SHARK</p>
-          <h2>Life leaks information into fields.</h2>
-          <p>Some sensory worlds are outside native human coupling. Here the goal changes: do not automate perception — translate the signal into a stable language the brain can learn.</p>
-          <div class="doctrine">
-            <span>TRAIN</span><i>→</i><span>AMPLIFY</span><i>→</i><span>TRANSLATE</span>
-          </div>
-          <p class="axiom">Technology becomes an interpreter between physical worlds, not a replacement for the human.</p>
-        </article>
-      </section>
-
-      <section class="chapter specimen" data-scene="bird">
-        <article class="specimen-copy right">
-          <p class="index">06 / ORIENTATION</p>
-          <p class="kicker">THE SPECIALIST · MIGRATORY BIRD</p>
-          <h2>A direction can become a sense.</h2>
-          <p>The nervous system can learn stable relationships between action and signal. New information may stop feeling like a device and start feeling like part of space.</p>
-          <dl>
-            <div><dt>Physical variable</dt><dd>Magnetic field · orientation</dd></div>
-            <div><dt>Human experiment</dt><dd>Persistent translated north / field direction</dd></div>
-            <div><dt>Research question</dt><dd>When does interpretation become perception?</dd></div>
-          </dl>
-        </article>
-      </section>
-    </div>
-
-    <section class="chapter inner" id="inner-earth" data-scene="inner">
-      <div class="inner-copy">
-        <p class="kicker">07 / THE SPECIALIST IS YOU</p>
-        <h2>The closest unexplored environment is your own body.</h2>
-        <p>After the external world comes interoception: heartbeat, breathing, vascular pressure, temperature, exertion, balance, visceral state and metabolic change.</p>
-        <div class="inner-grid">
-          <span>HEARTBEAT</span><span>RESPIRATION</span><span>PRESSURE</span><span>TEMPERATURE</span>
-          <span>BALANCE</span><span>FATIGUE</span><span>METABOLIC STATE</span><span>VISCERAL SIGNAL</span>
-        </div>
-        <p class="axiom">The machine measures first. Then it teaches. The goal is a better-calibrated human.</p>
+    <section class="scene" data-scene="bat">
+      <div class="caption">
+        <p>02</p>
+        <h2>ECHOLOCATION</h2>
+        <small>HUMAN ↔ BAT</small>
       </div>
     </section>
 
-    <section class="chapter synthesis" data-scene="human">
-      <div class="synthesis-copy">
-        <p class="kicker">THE REVEALED HUMAN</p>
-        <h2>The future human is not a fantasy.<br/><em>It is a better-characterized one.</em></h2>
-        <div class="four">
-          <div><b>01</b><span>Measure what exists.</span></div>
-          <div><b>02</b><span>Train what is latent.</span></div>
-          <div><b>03</b><span>Amplify what is weak.</span></div>
-          <div><b>04</b><span>Translate what is inaccessible.</span></div>
-        </div>
+    <section class="scene" data-scene="dog">
+      <div class="caption">
+        <p>03</p>
+        <h2>CHEMICAL SPACE</h2>
+        <small>HUMAN ↔ DOG</small>
       </div>
     </section>
 
-    <section class="chapter institute" data-scene="final">
-      <div class="final-card">
-        <p class="kicker">THE ODD EARTH INSTITUTE</p>
-        <h2>Elucidating the underpinnings of human capacity.</h2>
-        <p>Research · psychophysics · biological instrumentation · sensory training · translated perception.</p>
-        <div class="hero-actions">
-          <a class="pill solid" href="https://wildwildwoofer.github.io/odd-earth-sensorium/">Enter Sensorium ↗</a>
-          <a class="pill" href="https://github.com/WildWildWoofer/OddEarth">Open laboratory ↗</a>
-        </div>
+    <section class="scene" data-scene="mole">
+      <div class="caption">
+        <p>04</p>
+        <h2>TOUCH</h2>
+        <small>HUMAN ↔ STAR-NOSED MOLE</small>
+      </div>
+    </section>
+
+    <section class="scene" data-scene="shark">
+      <div class="caption">
+        <p>05</p>
+        <h2>FIELD SENSING</h2>
+        <small>HUMAN ↔ SHARK</small>
+      </div>
+    </section>
+
+    <section class="scene" data-scene="bird">
+      <div class="caption">
+        <p>06</p>
+        <h2>ORIENTATION</h2>
+        <small>HUMAN ↔ MIGRATORY BIRD</small>
+      </div>
+    </section>
+
+    <section class="scene" data-scene="inner">
+      <div class="caption final-caption">
+        <p>07 / INNER EARTH</p>
+        <h2>THE SPECIALIST<br/>IS YOU.</h2>
+        <small>MEASURE · TRAIN · AMPLIFY · TRANSLATE</small>
       </div>
     </section>
   </main>
 
-  <footer>
-    <span>THE ODD EARTH INSTITUTE</span>
-    <span>Same world. More perception.</span>
-    <span>V1 / 2026</span>
-  </footer>
-
+  <div class="progress" aria-hidden="true"><i id="progressBar"></i></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>
