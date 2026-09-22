@@ -112,3 +112,22 @@ footer{position:relative;z-index:10;max-width:var(--max);margin:0 auto;padding:2
  .doctrine{gap:8px}.doctrine span{font-size:17px}
  .reticle{display:none}
 }
+
+/* V2 — Living Specimen Architecture */
+#stage:after{
+  background:
+    linear-gradient(90deg,rgba(5,9,8,.18),transparent 24%,transparent 76%,rgba(5,9,8,.16)),
+    radial-gradient(circle at 50% 50%,transparent 0%,transparent 58%,rgba(5,9,8,.26) 100%);
+}
+.reticle{opacity:.28;border-color:rgba(238,233,223,.045)}
+.reticle i:nth-child(1){border-color:rgba(182,154,99,.04)}
+.reticle i:nth-child(2){opacity:.55}
+.readout{opacity:.62}
+.specimen{min-height:138vh}
+.specimen-copy{width:min(470px,39vw);background:linear-gradient(90deg,rgba(5,9,8,.70),rgba(5,9,8,.26) 75%,transparent);backdrop-filter:blur(4px)}
+.specimen-copy.right{background:linear-gradient(270deg,rgba(5,9,8,.70),rgba(5,9,8,.26) 75%,transparent)}
+.hero-copy{position:relative;z-index:3}
+@media(max-width:850px){
+  .specimen{min-height:120vh}
+  .specimen-copy,.specimen-copy.right{width:100%;background:linear-gradient(90deg,rgba(5,9,8,.82),rgba(5,9,8,.42) 80%,transparent)}
+}
