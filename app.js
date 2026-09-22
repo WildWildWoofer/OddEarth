@@ -359,6 +359,7 @@ const colorAttr=new THREE.BufferAttribute(colors,3);
 geometry.setAttribute('color',colorAttr);
 
 const vertexShader=[
+'attribute vec3 color;',
 'attribute float aSize;',
 'attribute float aPhase;',
 'varying vec3 vColor;',
