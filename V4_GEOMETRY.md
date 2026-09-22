@@ -8,7 +8,7 @@ The renderer keeps one persistent particle universe. Geometry does not appear di
 
 ## Human
 
-### Eugene v0.1
+### Eugene v0.2
 
 Source anatomy:
 - Vitruvian CC0 human head from `ibrews/VitruvianGodot`
@@ -18,8 +18,8 @@ License:
 - Character/head assets explicitly CC0 1.0.
 
 Identity fit:
-- Public-reference v0.1 deformation only.
-- The fit is deliberately conservative: facial length, cheek width, lower-jaw profile, nose projection and central facial depth are adjusted after surface sampling.
+- public-reference v0.2 deformation only.
+- The fit remains deliberately conservative, but v0.2 adds feature-weighted formation and refined: facial length, cheek width, lower-jaw profile, nose bridge/tip projection, cheekbone planes, brow plane, chin projection, and subtle asymmetry after surface sampling.
 - Public photographs are references only and are not bundled or redistributed.
 - This is not a photogrammetric reconstruction. A controlled multi-angle capture can later replace the v0.1 fit.
 
@@ -77,8 +77,8 @@ No source mesh is displayed.
 
 ## Next geometry pass
 
-1. Review the live Eugene v0.1 proportions.
+1. Review the live Eugene v0.2 proportions.
 2. Correct head orientation if the source GLB resolves backwards.
 3. Tune crop windows for eagle/dog/bat/shark/bird from live behavior.
 4. Replace the generic mole base if a cleaner CC0 star-nosed-mole scan becomes available.
-5. Replace Eugene v0.1 with controlled multi-angle capture when available.
+5. Replace Eugene v0.2 with controlled multi-angle capture when available.
