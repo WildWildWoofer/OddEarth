@@ -60,3 +60,8 @@ Sensorium — the experimental/training wing:
 `https://wildwildwoofer.github.io/odd-earth-sensorium/`
 
 See `DESIGN_V2.md` for the current art-direction specification.
+
+
+## V4 geometry
+
+The live renderer now supports hidden CC0 mesh surfaces for realistic particle attractors. See `V4_GEOMETRY.md` for current subject sources, licensing, fallbacks, and Eugene v0.1 portrait-fit status.
