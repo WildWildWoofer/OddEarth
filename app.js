@@ -31,6 +31,8 @@ const sizes=new Float32Array(N);
 const colors=new Float32Array(N*3);
 const target=new Float32Array(N*3);
 const strength=new Float32Array(N);
+const formationDelay=new Float32Array(N);
+const surfaceNormal=new Float32Array(N*3);
 const role=new Uint8Array(N);
 
 const PALETTE={
@@ -331,30 +333,57 @@ function eugeneFit(src){
   for(let i=0;i<src.length;i+=3){
     let x=src[i],y=src[i+1],z=src[i+2];
 
-    // Public-reference v0.1 fit: slightly longer face, restrained cheek width,
-    // firmer lower jaw and a little more nasal projection. This is intentionally
-    // conservative until controlled multi-angle references replace it.
-    const yn=THREE.MathUtils.clamp((y+.58)/1.16,0,1);
-    const jaw=1-smooth(.26,.55,yn);
-    const temple=smooth(.58,.92,yn);
-    x*=.94+.055*jaw+.02*temple;
-    y*=1.035;
+    // Eugene v0.2 — conservative portrait fit from public references.
+    // The intent is recognisable proportion, not photogrammetric identity.
+    const yn=THREE.MathUtils.clamp((y+.60)/1.22,0,1);
+    const lower=1-smooth(.29,.57,yn);
+    const upper=smooth(.60,.94,yn);
 
-    const central=Math.exp(-(x*x)/.035);
-    const noseBand=Math.exp(-Math.pow((y-.06)/.19,2));
-    z+=central*noseBand*.038;
+    // Slightly longer craniofacial axis; more definite jaw without making
+    // the lower face broad.
+    y*=1.052;
+    x*=.925+.060*lower+.018*upper;
 
-    const cheekBand=Math.exp(-Math.pow((y-.02)/.22,2));
-    z+=Math.exp(-Math.pow((Math.abs(x)-.19)/.10,2))*cheekBand*.010;
+    // Nose bridge / tip projection.
+    const central=Math.exp(-(x*x)/.028);
+    const bridge=Math.exp(-Math.pow((y-.085)/.20,2));
+    const tip=Math.exp(-Math.pow((y+.015)/.075,2));
+    z+=central*(bridge*.041+tip*.020);
 
-    if(y<-.14){
-      x*=.985;
-      z+=.008;
+    // Cheekbones: retain plane separation rather than inflating the full face.
+    const cheekY=Math.exp(-Math.pow((y-.015)/.18,2));
+    const cheekX=Math.exp(-Math.pow((Math.abs(x)-.185)/.075,2));
+    z+=cheekX*cheekY*.015;
+
+    // Brow plane.
+    const browY=Math.exp(-Math.pow((y-.205)/.070,2));
+    const browX=Math.exp(-Math.pow((Math.abs(x)-.145)/.105,2));
+    z+=browY*browX*.010;
+
+    // Chin / mandibular projection.
+    if(y<-.16){
+      const chin=Math.exp(-Math.pow((y+.31)/.12,2))*Math.exp(-(x*x)/.055);
+      z+=.013+.014*chin;
+      x*=.982;
     }
+
+    // Tiny natural asymmetries stop the fitted base reading as a synthetic mask.
+    if(x>0){
+      const eyeBand=Math.exp(-Math.pow((y-.16)/.075,2));
+      y+=eyeBand*.0035;
+      z+=cheekY*.0035;
+    }else{
+      const jawBand=Math.exp(-Math.pow((y+.27)/.15,2));
+      x*=1+.010*jawBand;
+    }
+    const mouthBand=Math.exp(-Math.pow((y+.13)/.055,2))*Math.exp(-(x*x)/.050);
+    y+=(x>0?1:-1)*mouthBand*.0025;
+
     push(out,x,y,z);
   }
   return out;
 }
+
 function starNoseFit(src){
   const out=[...src];
   let maxZ=-Infinity;
@@ -381,6 +410,72 @@ function starNoseFit(src){
     }
   }
   return out;
+}
+
+function cloudBounds(src){
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  for(let i=0;i<src.length;i+=3){
+    minX=Math.min(minX,src[i]);maxX=Math.max(maxX,src[i]);
+    minY=Math.min(minY,src[i+1]);maxY=Math.max(maxY,src[i+1]);
+    minZ=Math.min(minZ,src[i+2]);maxZ=Math.max(maxZ,src[i+2]);
+  }
+  return {
+    minX,maxX,minY,maxY,minZ,maxZ,
+    cx:(minX+maxX)/2,cy:(minY+maxY)/2,cz:(minZ+maxZ)/2,
+    sx:Math.max(.001,maxX-minX),sy:Math.max(.001,maxY-minY),sz:Math.max(.001,maxZ-minZ)
+  };
+}
+function featureMetrics(src,j,kind,b){
+  const x=src[j],y=src[j+1],z=src[j+2];
+  const nx=(x-b.cx)/(b.sx*.5),ny=(y-b.cy)/(b.sy*.5),nz=(z-b.cz)/(b.sz*.5);
+  const silhouette=smooth(.62,.92,Math.abs(nx));
+
+  let eye=0,nose=0,mouth=0,signature=0;
+  if(kind==='human'){
+    eye=Math.exp(-Math.pow((ny-.22)/.18,2))*Math.exp(-Math.pow((Math.abs(nx)-.34)/.19,2))*smooth(.0,.55,nz);
+    nose=Math.exp(-Math.pow(nx/.18,2))*Math.exp(-Math.pow((ny+.02)/.30,2))*smooth(.05,.80,nz);
+    mouth=Math.exp(-Math.pow(nx/.38,2))*Math.exp(-Math.pow((ny+.34)/.13,2))*smooth(.0,.65,nz);
+    signature=Math.max(eye,nose,mouth);
+  }else if(kind==='bat'){
+    signature=Math.max(
+      Math.exp(-Math.pow((Math.abs(nx)-.58)/.26,2))*smooth(.16,.68,ny),
+      smooth(.48,.92,nz)*Math.exp(-Math.pow(ny/.52,2))
+    );
+  }else if(kind==='shark'){
+    signature=Math.max(smooth(.42,.92,nz),Math.exp(-Math.pow((Math.abs(nx)-.52)/.24,2))*Math.exp(-Math.pow((ny-.10)/.25,2)));
+  }else{
+    signature=Math.max(
+      smooth(.40,.90,nz),
+      Math.exp(-Math.pow((Math.abs(nx)-.33)/.24,2))*Math.exp(-Math.pow((ny-.18)/.28,2))
+    );
+  }
+
+  const weight=1+2.2*silhouette+3.1*signature+(kind==='human'?1.4*eye+1.2*nose:.0);
+  let delay=.105;
+  if(silhouette>.66)delay=-.025;
+  else if(eye>.48)delay=.000;
+  else if(nose>.46||signature>.66)delay=.028;
+  else if(mouth>.40)delay=.055;
+  else if(ny<-.30)delay=.070;
+  return {weight,delay,silhouette,signature,nx,ny,nz,x,y,z};
+}
+function weightedIndex(src,kind,b){
+  let chosen=((Math.random()*(src.length/3))|0)*3;
+  let best=-1;
+  for(let k=0;k<7;k++){
+    const j=((Math.random()*(src.length/3))|0)*3;
+    const m=featureMetrics(src,j,kind,b);
+    const score=m.weight*Math.random();
+    if(score>best){best=score;chosen=j}
+  }
+  return chosen;
+}
+function setSurfaceNormal(idx,lx,ly,lz){
+  const len=Math.sqrt(lx*lx+ly*ly+lz*lz)||1;
+  const k=idx*3;
+  surfaceNormal[k]=lx/len;
+  surfaceNormal[k+1]=ly/len;
+  surfaceNormal[k+2]=lz/len;
 }
 
 function cropPortrait(src,kind){
@@ -468,38 +563,47 @@ function updateColors(name){
 }
 function setTargets(name){
   strength.fill(0);
+  formationDelay.fill(.10);
   const humanShift=name==='inner'?0:-.83;
   const humanRot=name==='inner'?0:.28;
   const animalShift=.86;
   const animalRot=-.31;
 
-  const hLen=humanBase.length/3;
+  const hb=cloudBounds(humanBase);
   for(let n=0;n<HUMAN_N;n++){
-    const j=((Math.random()*hLen)|0)*3,k=n*3;
-    const x=humanBase[j],z=humanBase[j+2],r=rotateY(x,z,humanRot);
+    const j=weightedIndex(humanBase,'human',hb),k=n*3;
+    const x=humanBase[j],y=humanBase[j+1],z=humanBase[j+2];
+    const r=rotateY(x,z,humanRot);
     target[k]=r[0]+humanShift;
-    target[k+1]=humanBase[j+1]+.08;
+    target[k+1]=y+.08;
     target[k+2]=r[1];
-    strength[n]=.69+Math.random()*.30;
+    const fm=featureMetrics(humanBase,j,'human',hb);
+    strength[n]=.67+Math.min(.33,(fm.weight-1)*.040)+Math.random()*.08;
+    formationDelay[n]=fm.delay;
+    setSurfaceNormal(n,r[0],y,r[1]);
   }
 
   if(name!=='human'&&name!=='inner'){
-    const src=animalBases[name],len=src.length/3;
+    const src=animalBases[name],ab=cloudBounds(src);
     for(let n=0;n<ANIMAL_N;n++){
-      const idx=HUMAN_N+n,j=((Math.random()*len)|0)*3,k=idx*3;
-      const x=src[j],z=src[j+2],r=rotateY(x,z,animalRot);
+      const idx=HUMAN_N+n,j=weightedIndex(src,name,ab),k=idx*3;
+      const x=src[j],y=src[j+1],z=src[j+2],r=rotateY(x,z,animalRot);
       target[k]=r[0]+animalShift;
-      target[k+1]=src[j+1]+.08;
+      target[k+1]=y+.08;
       target[k+2]=r[1];
-      strength[idx]=.61+Math.random()*.32;
+      const fm=featureMetrics(src,j,name,ab);
+      strength[idx]=.59+Math.min(.33,(fm.weight-1)*.040)+Math.random()*.08;
+      formationDelay[idx]=fm.delay+.018;
+      setSurfaceNormal(idx,r[0],y,r[1]);
     }
   }else if(name==='inner'){
     for(let n=0;n<ANIMAL_N;n++){
-      const idx=HUMAN_N+n,j=((Math.random()*hLen)|0)*3,k=idx*3;
-      target[k]=humanBase[j];
-      target[k+1]=humanBase[j+1]+.08;
-      target[k+2]=humanBase[j+2];
-      strength[idx]=.30+Math.random()*.24;
+      const idx=HUMAN_N+n,j=weightedIndex(humanBase,'human',hb),k=idx*3;
+      const x=humanBase[j],y=humanBase[j+1],z=humanBase[j+2];
+      target[k]=x;target[k+1]=y+.08;target[k+2]=z;
+      strength[idx]=.28+Math.random()*.25;
+      formationDelay[idx]=.09;
+      setSurfaceNormal(idx,x,y,z);
     }
   }
 
@@ -508,6 +612,8 @@ function setTargets(name){
     const idx=HUMAN_N+ANIMAL_N+n,j=((Math.random()*flen)|0)*3,k=idx*3;
     target[k]=fsrc[j];target[k+1]=fsrc[j+1];target[k+2]=fsrc[j+2];
     strength[idx]=.23+Math.random()*.34;
+    formationDelay[idx]=.16+Math.random()*.04;
+    setSurfaceNormal(idx,target[k],target[k+1],target[k+2]);
   }
   updateColors(name);
 }
@@ -630,6 +736,11 @@ function integrate(now){
     vx+=fx*flow*dt;vy+=fy*flow*.82*dt;vz+=fz*flow*dt;
 
     let bind=attraction;
+    if(i<FREE_START){
+      const delay=formationDelay[i];
+      const staged=smooth(.08+delay,.40+delay,st.progress)*(1-smooth(.80,.98,st.progress));
+      bind=Math.min(bind,staged);
+    }
     if(i>=HUMAN_N+ANIMAL_N&&i<FREE_START)bind*=sensory;
     if(i>=FREE_START)bind=0;
     if(st.name==='human'&&i>=HUMAN_N&&i<HUMAN_N+ANIMAL_N)bind=0;
@@ -642,12 +753,17 @@ function integrate(now){
       vy+=dy*spring*bind*dt;
       vz+=dz*spring*bind*dt;
 
-      // Tangential circulation: particles keep travelling across the sampled
-      // surface instead of freezing into a static point cloud.
-      const swirl=.19*bind*(.58+.42*Math.sin(ph+t*.35));
-      vx+=(-dy+dz*.25)*swirl*dt;
-      vy+=(dx*.65-dz*.20)*swirl*dt;
-      vz+=(dx*.12+dy*.20)*swirl*dt;
+      // Tangential circulation follows an approximate local surface tangent,
+      // so particles travel across the anatomy instead of cutting through it.
+      const nk=i*3,nx=surfaceNormal[nk],ny=surfaceNormal[nk+1],nz=surfaceNormal[nk+2];
+      const ax=Math.sin(t*.31+ph),ay=Math.cos(t*.27+ph*.7),az=Math.sin(t*.23-ph*.5);
+      let tx=ay*nz-az*ny,ty=az*nx-ax*nz,tz=ax*ny-ay*nx;
+      const tl=Math.sqrt(tx*tx+ty*ty+tz*tz)||1;
+      tx/=tl;ty/=tl;tz/=tl;
+      const swirl=.105*bind*(.62+.38*Math.sin(ph+t*.35));
+      vx+=tx*swirl*dt;
+      vy+=ty*swirl*dt;
+      vz+=tz*swirl*dt;
 
       // Continual exchange with the free field.
       const exchange=.82+.18*Math.sin(t*.42+ph*2.3);
