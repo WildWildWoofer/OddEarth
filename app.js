@@ -15,7 +15,7 @@ const camera=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,.1,100);
 camera.position.set(0,.25,5.7);
 
 const mobile=innerWidth<760;
-const density=mobile?.55:1;
+const density=mobile?.28:.46;
 const TAU=Math.PI*2;
 const chapters=[...document.querySelectorAll('.scene')];
 const groups={};
@@ -47,19 +47,23 @@ const vertexShader=[
 'void main(){',
 '  float s=smoothstep(0.0,1.0,uSnap);',
 '  vec3 loose=aScatter;',
-'  loose.x += sin(uTime*.28+aPhase*2.1)*uDrift;',
-'  loose.y += cos(uTime*.23+aPhase*1.7)*uDrift*.72;',
-'  loose.z += sin(uTime*.19+aPhase)*uDrift*.62;',
-'  vec3 p=mix(loose,position,s);',
-'  p += normal*0.0;',
+'  loose.x += sin(uTime*.38+aPhase*2.1+loose.y*.55)*uDrift;',
+'  loose.y += cos(uTime*.31+aPhase*1.7+loose.z*.42)*uDrift*.78;',
+'  loose.z += sin(uTime*.27+aPhase+loose.x*.47)*uDrift*.72;',
+'  vec3 flow=position;',
+'  flow.x += sin(uTime*.72+aPhase+position.y*4.1)*.032;',
+'  flow.y += cos(uTime*.58+aPhase*1.3+position.x*3.4)*.022;',
+'  flow.z += sin(uTime*.64+aPhase*.8+position.z*4.3)*.030;',
+'  float settle=s*.94;',
+'  vec3 p=mix(loose,flow,settle);',
 '  vec4 mv=modelViewMatrix*vec4(p,1.0);',
-'  float lockPulse=1.0+0.18*exp(-pow((s-.86)*9.0,2.0));',
-'  gl_PointSize=max(1.0,aSize*lockPulse*(215.0/-mv.z));',
+'  float lockPulse=1.0+0.06*exp(-pow((s-.86)*10.0,2.0));',
+'  gl_PointSize=max(.72,aSize*lockPulse*(168.0/-mv.z));',
 '  gl_Position=projectionMatrix*mv;',
-'  vAlpha=uOpacity;',
+'  vAlpha=uOpacity*(.72+.22*sin(uTime*.42+aPhase));',
 '  vGlow=aGlow;',
 '}'
-].join('\n');
+].join('\\n');
 
 const fragmentShader=[
 'uniform vec3 uColor;',
@@ -69,13 +73,13 @@ const fragmentShader=[
 '  vec2 p=gl_PointCoord-.5;',
 '  float r=length(p);',
 '  if(r>.5)discard;',
-'  float core=smoothstep(.46,.05,r);',
-'  float halo=smoothstep(.5,.18,r)*.22;',
-'  float a=(core+halo)*vAlpha;',
-'  vec3 c=uColor*(.72+.45*core+.17*vGlow);',
+'  float core=smoothstep(.43,.10,r);',
+'  float halo=smoothstep(.50,.30,r)*.08;',
+'  float a=(core*.82+halo)*vAlpha;',
+'  vec3 c=uColor*(.52+.22*core+.08*vGlow);',
 '  gl_FragColor=vec4(c,a);',
 '}'
-].join('\n');
+].join('\\n');
 
 function rand(a,b){return a+Math.random()*(b-a)}
 function gauss(){
@@ -152,7 +156,7 @@ function particleCloud(group,positions,color,size=4.9,opacity=.88,spread=2.7){
     scatter[j]=homeX*.12+Math.sin(b)*Math.cos(a)*r;
     scatter[j+1]=homeY*.12+Math.cos(b)*r;
     scatter[j+2]=homeZ*.12+Math.sin(b)*Math.sin(a)*r;
-    sizes[i]=size*(.60+.75*Math.random());
+    sizes[i]=size*(.30+.42*Math.random());
     phase[i]=Math.random()*TAU;
     glow[i]=Math.random();
   }
@@ -168,15 +172,15 @@ function particleCloud(group,positions,color,size=4.9,opacity=.88,spread=2.7){
       uTime:{value:0},
       uSnap:{value:0},
       uOpacity:{value:0},
-      uDrift:{value:.18}
+      uDrift:{value:.32}
     },
     vertexShader:vertexShader,
     fragmentShader:fragmentShader,
     transparent:true,
     depthWrite:false,
-    blending:THREE.AdditiveBlending
+    blending:THREE.NormalBlending
   });
-  mat.userData.baseOpacity=opacity;
+  mat.userData.baseOpacity=opacity*.46;
   const points=new THREE.Points(geo,mat);
   group.add(points);
   return points;
@@ -430,7 +434,7 @@ function setSceneState(name,g,opacity,snap,field){
       m.uniforms.uOpacity.value=(m.userData.baseOpacity||.8)*opacity;
       m.uniforms.uSnap.value=snap;
       m.uniforms.uTime.value=performance.now()*.001;
-      m.uniforms.uDrift.value=.20*(1-snap)+.012;
+      m.uniforms.uDrift.value=.34*(1-snap)+.028;
       if(o.userData.field)m.uniforms.uOpacity.value*=field;
     }else if(m.userData.baseOpacity!=null){
       m.opacity=m.userData.baseOpacity*opacity*(o.userData.field?field:1);
