@@ -108,7 +108,7 @@ body{
   pointer-events:none;
   text-shadow:0 2px 18px rgba(0,0,0,.5);
 }
-.scene.is-active .caption{
+.scene.is-locked .caption{
   opacity:.9;
   transform:translateY(0);
 }
