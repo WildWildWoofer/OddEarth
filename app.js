@@ -47,6 +47,7 @@ const PALETTE={
 const ASSETS={
   human:'https://cdn.jsdelivr.net/gh/ibrews/VitruvianGodot@bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_head.glb',
   eagle:'https://cdn.3dassets.dev/assets/20643/v1/model.glb',
+  mole:'https://3dassets.dev/download/lawn-mowing-simulator-kit-molehill-317986aa',
   dog:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Corgi.glb',
   bat:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Bat.glb',
   shark:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Shark.glb',
@@ -354,6 +355,34 @@ function eugeneFit(src){
   }
   return out;
 }
+function starNoseFit(src){
+  const out=[...src];
+  let maxZ=-Infinity;
+  for(let i=0;i<src.length;i+=3)maxZ=Math.max(maxZ,src[i+2]);
+  const baseZ=maxZ-.04;
+  const cy=.02;
+  for(let ray=0;ray<22;ray++){
+    const a=ray/22*TAU;
+    const len=.18+.055*Math.sin(ray*2.7);
+    const ey=cy+Math.sin(a)*len;
+    const ex=Math.cos(a)*len;
+    const ez=maxZ+.13+.025*Math.cos(a*2);
+    const steps=18;
+    for(let j=0;j<steps;j++){
+      const t=j/(steps-1);
+      const width=(1-t)*.012+.003;
+      for(let q=0;q<2;q++){
+        push(out,
+          ex*t+gauss()*width,
+          cy+(ey-cy)*t+gauss()*width,
+          baseZ+(ez-baseZ)*t+gauss()*width
+        );
+      }
+    }
+  }
+  return out;
+}
+
 function cropPortrait(src,kind){
   const out=[];
   for(let i=0;i<src.length;i+=3){
@@ -361,6 +390,7 @@ function cropPortrait(src,kind){
     let keep=true;
     if(kind==='human')keep=y>-.62&&y<.66&&Math.abs(x)<.62;
     if(kind==='eagle')keep=y>-.06&&Math.abs(x)<.72;
+    if(kind==='mole')keep=y>.02&&Math.abs(x)<.58;
     if(kind==='dog')keep=y>-.52;
     if(kind==='bat')keep=y>-.50;
     if(kind==='shark')keep=x>-1.0;
@@ -387,6 +417,7 @@ async function hydrateRealGeometry(){
     ['human',ASSETS.human,26000,{kind:'human',axis:'y',height:1.18,flipZ:false,fit:eugeneFit}],
     ['eagle',ASSETS.eagle,20000,{kind:'eagle',axis:'y',height:1.24,flipZ:false}],
     ['dog',ASSETS.dog,18000,{kind:'dog',axis:'y',height:1.20,flipZ:false}],
+    ['mole',ASSETS.mole,12000,{kind:'mole',axis:'y',height:1.15,flipZ:false,fit:starNoseFit}],
     ['bat',ASSETS.bat,18000,{kind:'bat',axis:'y',height:1.15,flipZ:false}],
     ['shark',ASSETS.shark,18000,{kind:'shark',axis:'y',height:1.15,flipZ:false}],
     ['bird',ASSETS.bird,18000,{kind:'bird',axis:'y',height:1.12,flipZ:false}]
