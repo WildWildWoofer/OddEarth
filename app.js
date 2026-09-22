@@ -45,11 +45,12 @@ const PALETTE={
 };
 
 const ASSETS={
-  human:'https://cdn.jsdelivr.net/gh/ibrews/VitruvianGodot@main/godot_project/vitruvian_head.glb',
-  dog:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@main/animal/Corgi.glb',
-  bat:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@main/animal/Bat.glb',
-  shark:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@main/animal/Shark.glb',
-  bird:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@main/animal/Duck.glb'
+  human:'https://cdn.jsdelivr.net/gh/ibrews/VitruvianGodot@bdecdcd537b4031fdd0fb299b7e4f93f084fffa0/godot_project/vitruvian_head.glb',
+  eagle:'https://cdn.3dassets.dev/assets/20643/v1/model.glb',
+  dog:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Corgi.glb',
+  bat:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Bat.glb',
+  shark:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Shark.glb',
+  bird:'https://cdn.jsdelivr.net/gh/Ariescar/gobkit-free-assets@0d654ab3306515b1b63621a5c6548554034482dc/animal/Duck.glb'
 };
 
 const geometryStatus={
@@ -359,6 +360,7 @@ function cropPortrait(src,kind){
     const x=src[i],y=src[i+1],z=src[i+2];
     let keep=true;
     if(kind==='human')keep=y>-.62&&y<.66&&Math.abs(x)<.62;
+    if(kind==='eagle')keep=y>-.06&&Math.abs(x)<.72;
     if(kind==='dog')keep=y>-.52;
     if(kind==='bat')keep=y>-.50;
     if(kind==='shark')keep=x>-1.0;
@@ -383,6 +385,7 @@ function loadGLBPoints(url,count,opts){
 async function hydrateRealGeometry(){
   const jobs=[
     ['human',ASSETS.human,26000,{kind:'human',axis:'y',height:1.18,flipZ:false,fit:eugeneFit}],
+    ['eagle',ASSETS.eagle,20000,{kind:'eagle',axis:'y',height:1.24,flipZ:false}],
     ['dog',ASSETS.dog,18000,{kind:'dog',axis:'y',height:1.20,flipZ:false}],
     ['bat',ASSETS.bat,18000,{kind:'bat',axis:'y',height:1.15,flipZ:false}],
     ['shark',ASSETS.shark,18000,{kind:'shark',axis:'y',height:1.15,flipZ:false}],
