@@ -522,7 +522,7 @@ const fragmentShader=[
 '}'
 ].join('\n');
 const material=new THREE.ShaderMaterial({
-  vertexShader,fragmentShader,vertexColors:true,transparent:true,depthWrite:false,
+  vertexShader,fragmentShader,transparent:true,depthWrite:false,
   blending:THREE.NormalBlending
 });
 const particles=new THREE.Points(geometry,material);
